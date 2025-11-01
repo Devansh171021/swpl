@@ -1,106 +1,292 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import TeamCard from "@/components/TeamCard";
+import PlayerCard from "@/components/PlayerCard";
 import BiddingPanel from "@/components/BiddingPanel";
 import AuctionHeader from "@/components/AuctionHeader";
 import TeamDetailsDialog from "@/components/TeamDetailsDialog";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, ChevronLeft } from "lucide-react";
-import { loadPlayersFromGoogleSheet, type SheetPlayerRow } from "@/lib/sheets";
-import CurrentPlayerDisplay from "@/components/CurrentPlayerDisplay";
+import { ChevronRight, ChevronLeft, User } from "lucide-react";
 
-// Mock data - replaced at runtime when Google Sheet is configured
+/*
+  Changes:
+  - Added normalizeImageUrl to convert Drive/Dropbox preview/share links to direct image URLs.
+  - Use normalizeImageUrl when mapping sheet rows.
+  - Improved <img> onError to replace src with a placeholder instead of hiding the element.
+  - Added referrerPolicy and crossOrigin attributes to image to reduce referrer issues.
+*/
+
+const SHEET_ID = "17WNEvsGoeEN04bzFb92Anc3mygKXH9Wtnwi8STZONak";
+const SHEET_GID = "0";
+
+// Google Apps Script Web App URL - You'll need to deploy this script (see instructions below)
+// Leave empty to disable auto-saving, or set to your deployed Apps Script URL
+const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxM3q9PehpXNgXVgWIItsvwQEc-rtS79JFc_9ZDbBHg4QGAeGnaqdUvoVVwqOoAf_lS/exec";
+
 const INITIAL_TEAMS = [
-  { name: "Mumbai Mavericks", purse: 100000000, playerCount: 0, color: "#FF6B35" },
-  { name: "Delhi Dragons", purse: 100000000, playerCount: 0, color: "#004E89" },
-  { name: "Bangalore Blasters", purse: 100000000, playerCount: 0, color: "#F72585" },
-  { name: "Chennai Champions", purse: 100000000, playerCount: 0, color: "#FFD60A" },
-  { name: "Kolkata Kings", purse: 100000000, playerCount: 0, color: "#7209B7" },
-  { name: "Punjab Panthers", purse: 100000000, playerCount: 0, color: "#FF0054" },
-  { name: "Hyderabad Hawks", purse: 100000000, playerCount: 0, color: "#06FFA5" },
-  { name: "Rajasthan Royals", purse: 100000000, playerCount: 0, color: "#FF006E" },
-  { name: "Gujarat Giants", purse: 100000000, playerCount: 0, color: "#8338EC" },
-  { name: "Lucknow Legends", purse: 100000000, playerCount: 0, color: "#FB5607" },
+  { name: "Dark Knights", purse: 100000000, playerCount: 0, color: "#1a1a1a" },
+  { name: "Giant Slayers", purse: 100000000, playerCount: 0, color: "#FF6B35" },
+  { name: "Desi Boyz", purse: 100000000, playerCount: 0, color: "#FFD60A" },
+  { name: "Warriors", purse: 100000000, playerCount: 0, color: "#004E89" },
+  { name: "Mighty Bulls", purse: 100000000, playerCount: 0, color: "#FF0054" },
+  { name: "Ninja X", purse: 100000000, playerCount: 0, color: "#7209B7" },
+  { name: "Red Dragons", purse: 100000000, playerCount: 0, color: "#DC2626" },
+  { name: "Thunderwolves", purse: 100000000, playerCount: 0, color: "#3B82F6" },
 ];
 
-const MOCK_PLAYERS: Array<SheetPlayerRow> = [
-  { id: "1", name: "Virat Kohli", role: "Batsman", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 20000000, imageUrl: "" },
-  { id: "2", name: "Jasprit Bumrah", role: "Bowler", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 18000000, imageUrl: "" },
-  { id: "3", name: "Rohit Sharma", role: "Batsman", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 19000000, imageUrl: "" },
-  { id: "4", name: "KL Rahul", role: "Wicket Keeper", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 17000000, imageUrl: "" },
-  { id: "5", name: "Ravindra Jadeja", role: "Allrounder", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 16000000, imageUrl: "" },
-  { id: "6", name: "Mohammed Shami", role: "Bowler", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 15000000, imageUrl: "" },
-  { id: "7", name: "Rishabh Pant", role: "Wicket Keeper", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 14000000, imageUrl: "" },
-  { id: "8", name: "Hardik Pandya", role: "Allrounder", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 15000000, imageUrl: "" },
-  { id: "9", name: "Shubman Gill", role: "Batsman", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 13000000, imageUrl: "" },
-  { id: "10", name: "Yuzvendra Chahal", role: "Bowler", category: "Men (Above 14 to Everyone who wants to Play in open)", basePrice: 12000000, imageUrl: "" },
-];
+const roleOrder = ["wicketkeeper", "batsman", "allrounder", "bowler"];
 
-const ROLE_ORDER: Array<SheetPlayerRow["role"]> = [
-  "Batsman",
-  "Bowler",
-  "Allrounder",
-  "Wicket Keeper",
-];
+// Normalize role to standard format for sorting
+const normalizeRole = (role?: string): string => {
+  if (!role) return "";
+  const r = role.toString().toLowerCase().trim();
+  
+  // Handle various role formats
+  if (r.includes("wicket") || r.includes("wk") || r === "w") return "wicketkeeper";
+  if (r.includes("bat") || r === "b") return "batsman";
+  if (r.includes("all") || r.includes("round") || r === "ar") return "allrounder";
+  if (r.includes("bowl") || r === "bw") return "bowler";
+  
+  return r;
+};
 
-function sequenceByRole(players: SheetPlayerRow[]): SheetPlayerRow[] {
-  const groups = new Map<string, SheetPlayerRow[]>();
-  for (const p of players) {
-    const key = p.role || "Unknown";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(p);
+// Convert common share/preview links to direct image/raw URLs
+const normalizeImageUrl = (url?: string) => {
+  if (!url) return "";
+  const u = url.trim();
+
+  try {
+    // Google Drive file preview: /file/d/FILE_ID/view
+    let m = u.match(/\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/);
+    if (m && m[1]) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+
+    // Google Drive sharing links with view?usp=sharing
+    m = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (m && m[1] && u.includes("drive.google.com")) {
+      return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+    }
+
+    // Google Drive alternative: open?id=FILE_ID or ?id=FILE_ID
+    m = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (m && m[1]) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+
+    // Dropbox share links: ?dl=0 or ?dl=1 => raw
+    if (u.includes("dropbox.com")) {
+      return u.replace("?dl=0", "?raw=1").replace("?dl=1", "?raw=1");
+    }
+
+    // Google Photos: remove size parameter and use direct link
+    if (u.includes("googleusercontent.com") || u.includes("ggpht.com")) {
+      return u.split("=")[0] + "=s800"; // Set consistent size
+    }
+
+    // Return as-is if already a direct image URL
+    return u;
+  } catch (err) {
+    return url;
   }
-  const ordered: SheetPlayerRow[] = [];
-  for (const role of ROLE_ORDER) {
-    const g = groups.get(role);
-    if (g) ordered.push(...g);
-  }
-  // Append any other roles not in ROLE_ORDER
-  for (const [role, g] of groups.entries()) {
-    if (!ROLE_ORDER.includes(role)) ordered.push(...g);
-  }
-  return ordered;
-}
+};
+
+// Sanitize player name to match local image file names
+const sanitizeFileName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '') // Remove special chars except spaces and hyphens
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single
+    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+};
+
+// Build image candidates - LOCAL FILES ONLY
+const buildImageCandidates = (playerName: string, rawUrl?: string): string[] => {
+  const candidates: string[] = [];
+  const extensions = ['jpg', 'jpeg', 'png', 'webp'];
+  
+  // FIRST: Try common filename patterns (most likely formats)
+  // Try underscore format first (very common: "First_Last.jpg")
+  extensions.forEach(ext => {
+    candidates.push(`/images/players/${playerName.replace(/\s+/g, '_')}.${ext}`);
+    candidates.push(`/images/players/${playerName.toLowerCase().replace(/\s+/g, '_')}.${ext}`);
+  });
+  
+  // Try hyphen format
+  extensions.forEach(ext => {
+    candidates.push(`/images/players/${playerName.replace(/\s+/g, '-')}.${ext}`);
+    candidates.push(`/images/players/${playerName.toLowerCase().replace(/\s+/g, '-')}.${ext}`);
+  });
+  
+  // Try exact name as-is (with spaces)
+  extensions.forEach(ext => {
+    candidates.push(`/images/players/${playerName}.${ext}`);
+    candidates.push(`/images/players/${playerName.toLowerCase()}.${ext}`);
+  });
+  
+  // Try no spaces
+  extensions.forEach(ext => {
+    candidates.push(`/images/players/${playerName.replace(/\s+/g, '')}.${ext}`);
+    candidates.push(`/images/players/${playerName.toLowerCase().replace(/\s+/g, '')}.${ext}`);
+  });
+  
+  // Try sanitized name
+  const sanitized = sanitizeFileName(playerName);
+  extensions.forEach(ext => {
+    const sanitizedPath = `/images/players/${sanitized}.${ext}`;
+    if (!candidates.includes(sanitizedPath)) {
+      candidates.push(sanitizedPath);
+    }
+  });
+
+  // ONLY LOCAL FILES - No remote URLs
+  return candidates;
+};
 
 const Index = () => {
   const [teams, setTeams] = useState(INITIAL_TEAMS);
-  const [players, setPlayers] = useState<Array<SheetPlayerRow>>(sequenceByRole(MOCK_PLAYERS));
+  const [players, setPlayers] = useState<any[]>([]);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [soldPlayers, setSoldPlayers] = useState<any[]>([]);
   const [unsoldPlayers, setUnsoldPlayers] = useState<any[]>([]);
   const [round, setRound] = useState(1);
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [isTeamDialogOpen, setIsTeamDialogOpen] = useState(false);
+  const [currentImageSrc, setCurrentImageSrc] = useState<string>("");
+  const [imageError, setImageError] = useState(false);
 
   const currentPlayer = players[currentPlayerIndex] || null;
 
-  // Load players from Google Sheet if configured
+  // Update image source when player changes
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    if (currentPlayer) {
+      const candidates = buildImageCandidates(currentPlayer.name, currentPlayer.imageUrl);
+      setCurrentImageSrc(candidates[0] || "");
+      setImageError(false);
+      // Log for debugging
+      console.log("Player:", currentPlayer.name);
+      console.log("Trying image candidates:", candidates.slice(0, 10));
+      console.log("First candidate will be:", candidates[0]);
+    }
+  }, [currentPlayer?.name, currentPlayer?.imageUrl]);
+
+  useEffect(() => {
+    const fetchPlayersFromSheet = async () => {
       try {
-        const fetched = await loadPlayersFromGoogleSheet();
-        if (!cancelled && fetched.length > 0) {
-          setPlayers(sequenceByRole(fetched));
-          setCurrentPlayerIndex(0);
+        const endpoint = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${SHEET_GID}`;
+        const res = await fetch(endpoint);
+        const text = await res.text();
+        const jsonStrMatch = text.match(/\(([\s\S]*)\);?$/);
+        const json = jsonStrMatch ? JSON.parse(jsonStrMatch[1]) : null;
+        if (!json?.table) {
+          console.warn("Sheet JSON did not include table. Check that the sheet is public/readable.");
+          return;
         }
-      } catch {
-        // Ignore and keep mocks
+
+        const cols = json.table.cols.map((c: any) => (c.label || c.id || "").toString().trim());
+        const rows = json.table.rows || [];
+
+        const mapped = rows.map((r: any, idx: number) => {
+          const obj: any = {};
+          (r.c || []).forEach((cell: any, i: number) => {
+            const header = cols[i] || `col${i}`;
+            obj[header] = cell ? cell.v : "";
+          });
+
+          const name =
+            obj["Name"] || obj["Player"] || obj["player_name"] || obj["Full Name"] || obj[cols[0]] || `Player ${idx + 1}`;
+          const role =
+            obj["Role"] || obj["Position"] || obj["role"] || obj[cols.find((h: string) => /role|position/i.test(h))] || "";
+          const basePriceRaw =
+            obj["BasePrice"] || obj["Base Price"] || obj["Price"] || obj["base_price"] || obj["basePrice"] || 0;
+          const imageUrlRaw =
+            obj["Image"] || obj["ImageUrl"] || obj["Photo"] || obj["image"] || obj["image_url"] || "";
+
+          const basePrice = Number(basePriceRaw) || 0;
+
+          return {
+            id: `sheet-${idx}`,
+            name,
+            role,
+            basePrice,
+            imageUrl: normalizeImageUrl(imageUrlRaw?.toString() || ""),
+            original: obj,
+            rowIndex: idx + 2, // +2 because: +1 for header row, +1 for 0-based to 1-based
+            originalRowIndex: idx, // Keep track of original position
+          };
+        });
+
+        const normalized = mapped.map((p: any) => ({
+          ...p,
+          roleNormalized: normalizeRole(p.role),
+        }));
+
+        normalized.sort((a: any, b: any) => {
+          const ia = roleOrder.indexOf(a.roleNormalized);
+          const ib = roleOrder.indexOf(b.roleNormalized);
+          const va = ia === -1 ? Number.MAX_SAFE_INTEGER : ia;
+          const vb = ib === -1 ? Number.MAX_SAFE_INTEGER : ib;
+          // If same role, maintain original order
+          if (va === vb) return 0;
+          return va - vb;
+        });
+
+        setPlayers(normalized);
+        setCurrentPlayerIndex(0);
+      } catch (err) {
+        console.error("Failed to load players from sheet", err);
       }
-    })();
-    return () => {
-      cancelled = true;
     };
+
+    fetchPlayersFromSheet();
   }, []);
 
-  const handleSold = (teamName: string, amount: number) => {
-    const updatedTeams = teams.map(team => 
-      team.name === teamName 
-        ? { ...team, purse: team.purse - amount, playerCount: team.playerCount + 1 }
-        : team
+  // Function to save data to Google Sheets
+  const saveToSheet = async (player: any, status: "sold" | "unsold", teamName?: string, amount?: number) => {
+    if (!GOOGLE_APPS_SCRIPT_URL) {
+      console.warn("Google Apps Script URL not configured. Data not saved to sheet.");
+      return;
+    }
+
+    try {
+      const payload = {
+        sheetId: SHEET_ID,
+        rowIndex: player.rowIndex || player.originalRowIndex + 2,
+        playerName: player.name,
+        status: status,
+        team: teamName || "",
+        amount: amount || 0,
+        round: round,
+        timestamp: new Date().toISOString(),
+      };
+
+      const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors", // Required for Google Apps Script
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log("Saved to sheet:", payload);
+    } catch (error) {
+      console.error("Failed to save to sheet:", error);
+      // Don't throw - allow auction to continue even if save fails
+    }
+  };
+
+  const handleSold = async (teamName: string, amount: number) => {
+    const updatedTeams = teams.map((team) =>
+      team.name === teamName ? { ...team, purse: team.purse - amount, playerCount: team.playerCount + 1 } : team
     );
     setTeams(updatedTeams);
 
-    setSoldPlayers([...soldPlayers, { ...currentPlayer, team: teamName, soldPrice: amount }]);
-    
+    if (currentPlayer) {
+      const soldPlayer = { ...currentPlayer, team: teamName, soldPrice: amount };
+      setSoldPlayers([...soldPlayers, soldPlayer]);
+      
+      // Save to Google Sheets
+      await saveToSheet(currentPlayer, "sold", teamName, amount);
+    }
+
     if (currentPlayerIndex < players.length - 1) {
       setCurrentPlayerIndex(currentPlayerIndex + 1);
     } else {
@@ -108,11 +294,14 @@ const Index = () => {
     }
   };
 
-  const handleUnsold = () => {
+  const handleUnsold = async () => {
     if (currentPlayer) {
       setUnsoldPlayers([...unsoldPlayers, currentPlayer]);
+      
+      // Save to Google Sheets
+      await saveToSheet(currentPlayer, "unsold");
     }
-    
+
     if (currentPlayerIndex < players.length - 1) {
       setCurrentPlayerIndex(currentPlayerIndex + 1);
     } else {
@@ -122,13 +311,12 @@ const Index = () => {
 
   const handleRoundComplete = () => {
     if (round === 1 && unsoldPlayers.length > 0) {
-      setPlayers(sequenceByRole(unsoldPlayers));
+      setPlayers(unsoldPlayers);
       setUnsoldPlayers([]);
       setCurrentPlayerIndex(0);
       setRound(2);
     } else if (round === 2 && unsoldPlayers.length > 0) {
       setRound(3);
-      // Lottery logic would go here
     }
   };
 
@@ -144,93 +332,142 @@ const Index = () => {
     }
   };
 
+  const openTeamDialog = () => setIsTeamDialogOpen(true);
+  const closeTeamDialog = () => setIsTeamDialogOpen(false);
+
   const getTeamPlayers = (teamName: string) => {
-    return soldPlayers.filter(player => player.team === teamName);
+    return soldPlayers.filter((p) => p.team === teamName);
   };
 
   const getTeamTotalSpent = (teamName: string) => {
-    const teamPlayers = getTeamPlayers(teamName);
-    return teamPlayers.reduce((total, player) => total + player.soldPrice, 0);
+    const t = getTeamPlayers(teamName);
+    return t.reduce((s, p) => s + (p.soldPrice || 0), 0);
   };
-
-  const selectedTeamData = selectedTeam 
-    ? teams.find(t => t.name === selectedTeam)
-    : null;
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
-        <AuctionHeader
-          round={round}
-          totalPlayers={players.length}
-          soldPlayers={soldPlayers.length}
-          unsoldPlayers={unsoldPlayers.length}
-        />
+        <AuctionHeader round={round} totalPlayers={players.length} soldPlayers={soldPlayers.length} unsoldPlayers={unsoldPlayers.length} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-3">
-            <CurrentPlayerDisplay imageUrl={currentPlayer?.imageUrl} name={currentPlayer?.name} />
-          </div>
-
-          <div className="lg:col-span-6 space-y-6">
-            <div className="flex items-center justify-between gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handlePrevious}
-                disabled={currentPlayerIndex === 0}
-                className="border-border hover:border-primary"
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Left Side - Single Clean Player Card */}
+          <div className="flex flex-col gap-6">
+            {currentPlayer && (
+              <div className="bg-gradient-card border border-border/50 rounded-xl p-8 shadow-card">
+                {/* Photo */}
+                <div className="w-full aspect-[3/4] rounded-lg bg-muted/30 flex items-center justify-center overflow-hidden mb-6 border-2 border-border/50">
+                  {!imageError && currentImageSrc ? (
+                    <img
+                      key={currentPlayer.name} // Force re-render on player change
+                      src={currentImageSrc}
+                      alt={currentPlayer.name}
+                      className="w-full h-full object-cover"
+                      loading="eager"
+                      crossOrigin="anonymous"
+                      referrerPolicy="no-referrer"
+                      onError={() => {
+                        const candidates = buildImageCandidates(currentPlayer.name, currentPlayer.imageUrl);
+                        const currentIndex = candidates.indexOf(currentImageSrc);
+                        const nextIndex = currentIndex + 1;
+                        
+                        if (nextIndex < candidates.length) {
+                          // Try next candidate
+                          console.log(`❌ Image failed: ${currentImageSrc}`);
+                          console.log(`➡️ Trying next candidate (${nextIndex + 1}/${candidates.length}): ${candidates[nextIndex]}`);
+                          setCurrentImageSrc(candidates[nextIndex]);
+                        } else {
+                          // All candidates failed
+                          console.log("❌ All image candidates failed, showing placeholder");
+                          console.log("Tried all candidates:", candidates);
+                          setImageError(true);
+                        }
+                      }}
+                      onLoad={() => {
+                        console.log(`✅ Successfully loaded image: ${currentImageSrc}`);
+                        setImageError(false);
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center">
+                      <User className="w-24 h-24 text-muted-foreground mb-2" />
+                      <p className="text-xs text-muted-foreground text-center px-4">
+                        No image found
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Name + Category */}
+                <div className="text-center mb-4">
+                  <h2 className="text-3xl font-bold text-foreground mb-2">
+                    {currentPlayer.name}
+                  </h2>
+                  {currentPlayer.role ? (
+                    <div className="inline-block px-4 py-1.5 bg-primary/10 text-primary rounded-full border border-primary/20">
+                      <span className="text-sm font-semibold capitalize">{normalizeRole(currentPlayer.role)}</span>
+                    </div>
+                  ) : null}
+                </div>
+                
+                {/* Base Price */}
+                <div className="text-center pt-4 border-t border-border/50">
+                  <p className="text-sm text-muted-foreground mb-2">Base Price</p>
+                  <p className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                    ₹{(currentPlayer.basePrice / 10000000).toFixed(2)}Cr
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Navigation Buttons */}
+            <div className="flex items-center justify-center gap-4">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handlePrevious} 
+                disabled={currentPlayerIndex === 0} 
+                className="border-border hover:border-primary h-12 w-12"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </Button>
-              <div className="flex-1" />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleNext}
-                disabled={currentPlayerIndex === players.length - 1}
-                className="border-border hover:border-primary"
+              <span className="text-sm text-muted-foreground">
+                {currentPlayerIndex + 1} / {players.length}
+              </span>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handleNext} 
+                disabled={currentPlayerIndex === players.length - 1} 
+                className="border-border hover:border-primary h-12 w-12"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </Button>
             </div>
-
-            <BiddingPanel
-              currentPlayer={currentPlayer}
-              teams={teams}
-              onSold={handleSold}
-              onUnsold={handleUnsold}
-            />
           </div>
 
-          <div className="lg:col-span-3 space-y-4">
-            <h3 className="text-2xl font-bold text-foreground">Teams</h3>
-            <div className="space-y-3 max-h-[800px] overflow-y-auto pr-2">
-              {teams.map((team) => (
-                <TeamCard
-                  key={team.name}
-                  name={team.name}
-                  purse={team.purse}
-                  playerCount={team.playerCount}
-                  color={team.color}
-                  onClick={() => setSelectedTeam(team.name)}
-                />
-              ))}
-            </div>
+          {/* Middle - Bidding Panel */}
+          <div className="space-y-6">
+            <BiddingPanel currentPlayer={currentPlayer} teams={teams} onSold={handleSold} onUnsold={handleUnsold} />
+          </div>
+
+          <div className="space-y-4">
+            {teams.map((team) => (
+              <div key={team.name} onClick={() => { setSelectedTeam(team.name); openTeamDialog(); }}>
+                <TeamCard name={team.name} purse={team.purse} playerCount={team.playerCount} color={team.color} onClick={() => { setSelectedTeam(team.name); openTeamDialog(); }} />
+              </div>
+            ))}
           </div>
         </div>
 
-        {selectedTeamData && (
-          <TeamDetailsDialog
-            open={selectedTeam !== null}
-            onOpenChange={(open) => !open && setSelectedTeam(null)}
-            teamName={selectedTeamData.name}
-            teamColor={selectedTeamData.color}
-            players={getTeamPlayers(selectedTeamData.name)}
-            totalSpent={getTeamTotalSpent(selectedTeamData.name)}
-            remainingPurse={selectedTeamData.purse}
-          />
-        )}
+        <TeamDetailsDialog
+          open={isTeamDialogOpen}
+          onOpenChange={setIsTeamDialogOpen}
+          teamName={selectedTeam || ""}
+          teamColor={teams.find((t) => t.name === selectedTeam)?.color || "#999999"}
+          players={selectedTeam ? getTeamPlayers(selectedTeam).map((p: any) => ({ ...p, category: p.role })) : []}
+          totalSpent={selectedTeam ? getTeamTotalSpent(selectedTeam) : 0}
+          remainingPurse={teams.find((t) => t.name === selectedTeam)?.purse || 0}
+        />
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+
+// src/components/BiddingPanel.tsx
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,9 +25,10 @@ interface BiddingPanelProps {
   teams: Array<{ name: string; purse: number }>;
   onSold: (teamName: string, amount: number) => void;
   onUnsold: () => void;
+  allowZeroPurchase?: boolean;
 }
 
-const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold }: BiddingPanelProps) => {
+const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold, allowZeroPurchase = false }: BiddingPanelProps) => {
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [bidAmount, setBidAmount] = useState<string>("");
 
@@ -34,14 +37,18 @@ const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold }: BiddingPanelPr
       toast.error("Please select a team");
       return;
     }
-    if (!bidAmount || parseFloat(bidAmount) <= 0) {
+
+    const amountVal = bidAmount ? parseFloat(bidAmount) : 0;
+
+    // If zero purchases are not allowed, require > 0
+    if (!allowZeroPurchase && (!bidAmount || amountVal <= 0)) {
       toast.error("Please enter a valid bid amount");
       return;
     }
 
-    const amountInRupees = parseFloat(bidAmount) * 10000000;
+    const amountInRupees = amountVal * 10000000;
     const team = teams.find(t => t.name === selectedTeam);
-    
+
     if (team && amountInRupees > team.purse) {
       toast.error("Team doesn't have enough purse!");
       return;
@@ -71,12 +78,30 @@ const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold }: BiddingPanelPr
   return (
     <Card className="bg-gradient-card border-border/50 shadow-card">
       <div className="p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <h2 className="text-3xl font-bold text-foreground">{currentPlayer.name}</h2>
-          <p className="text-muted-foreground">{currentPlayer.category}</p>
-          <p className="text-xl font-semibold text-accent">
-            Base: ₹{(currentPlayer.basePrice / 10000000).toFixed(2)} Crores
-          </p>
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center overflow-hidden border-4 border-primary/30 shadow-glow">
+              {currentPlayer.imageUrl ? (
+                <img
+                  src={currentPlayer.imageUrl}
+                  alt={currentPlayer.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <User className={`w-16 h-16 text-muted-foreground ${currentPlayer.imageUrl ? 'hidden' : ''}`} />
+            </div>
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">{currentPlayer.name}</h2>
+            <p className="text-muted-foreground">{currentPlayer.category}</p>
+            <p className="text-xl font-semibold text-accent mt-2">
+              Base: ₹{(currentPlayer.basePrice / 10000000).toFixed(2)} Crores
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-4">
@@ -103,7 +128,7 @@ const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold }: BiddingPanelPr
               type="number"
               step="0.01"
               min="0"
-              placeholder="Enter amount"
+              placeholder={allowZeroPurchase ? "Enter amount (0 allowed)" : "Enter amount (>0)"}
               value={bidAmount}
               onChange={(e) => setBidAmount(e.target.value)}
               className="bg-input border-border text-foreground"
