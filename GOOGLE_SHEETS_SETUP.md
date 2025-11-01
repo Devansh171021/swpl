@@ -95,3 +95,5 @@ This guide will help you set up automatic saving of auction data to your Google 
 
 The Web App URL can be accessed by anyone who has it, but it only writes to YOUR sheet. Keep the URL private if you want to restrict access.
 
+
+

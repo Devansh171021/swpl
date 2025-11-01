@@ -186,3 +186,5 @@ function findPlayerRow(sheet, playerName) {
   return -1; // Not found
 }
 
+
+

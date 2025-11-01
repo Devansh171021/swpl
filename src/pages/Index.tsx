@@ -22,14 +22,14 @@ const SHEET_GID = "0";
 const STORAGE_KEY = "auction_data";
 
 const INITIAL_TEAMS = [
-  { name: "Dark Knights", purse: 50000, playerCount: 0, color: "#1a1a1a" },
-  { name: "Giant Slayers", purse: 50000, playerCount: 0, color: "#FF6B35" },
-  { name: "Desi Boyz", purse: 50000, playerCount: 0, color: "#FFD60A" },
-  { name: "Warriors", purse: 50000, playerCount: 0, color: "#004E89" },
-  { name: "Mighty Bulls", purse: 50000, playerCount: 0, color: "#FF0054" },
-  { name: "Ninja X", purse: 50000, playerCount: 0, color: "#7209B7" },
-  { name: "Red Dragons", purse: 50000, playerCount: 0, color: "#DC2626" },
-  { name: "Thunderwolves", purse: 50000, playerCount: 0, color: "#3B82F6" },
+  { name: "Dark Knights", purse: 50000, playerCount: 0, color: "#1a1a1a", captain: "Shourya Shikhar Singh", mentor: "Shib Pattnayak" },
+  { name: "Giant Slayers", purse: 50000, playerCount: 0, color: "#FF6B35", captain: "SIDDHARTHA GHOSH", mentor: "SAMARESH GAYAN" },
+  { name: "Desi Boyz", purse: 50000, playerCount: 0, color: "#FFD60A", captain: "AMIT SAHA", mentor: "Pankaj kumar" },
+  { name: "Warriors", purse: 50000, playerCount: 0, color: "#004E89", captain: "Argha Chatterjee", mentor: "Santanu Ghosh" },
+  { name: "Mighty Bulls", purse: 50000, playerCount: 0, color: "#FF0054", captain: "Hrishikesh Mukherjee", mentor: "Pankaj kumar" },
+  { name: "Ninja X", purse: 50000, playerCount: 0, color: "#7209B7", captain: "Surya", mentor: "Gaurav Singh" },
+  { name: "Red Dragons", purse: 50000, playerCount: 0, color: "#DC2626", captain: "Krishnendu Hazra", mentor: "souvik roy" },
+  { name: "Thunderwolves", purse: 50000, playerCount: 0, color: "#3B82F6", captain: "Abir Roy", mentor: "Amit Mishra" },
 ];
 
 const roleOrder = ["wicketkeeper", "batsman", "allrounder", "bowler"];
@@ -212,7 +212,19 @@ const Index = () => {
           };
         });
 
-        const normalized = mapped.map((p: any) => ({
+        // Get all captain and mentor names (case-insensitive matching)
+        const captainAndMentorNames = INITIAL_TEAMS.flatMap(team => [
+          team.captain?.toLowerCase().trim(),
+          team.mentor?.toLowerCase().trim()
+        ]).filter(Boolean);
+
+        // Filter out players who are captains or mentors
+        const filtered = mapped.filter((p: any) => {
+          const playerNameLower = (p.name || "").toLowerCase().trim();
+          return !captainAndMentorNames.some(name => name === playerNameLower);
+        });
+
+        const normalized = filtered.map((p: any) => ({
           ...p,
           roleNormalized: normalizeRole(p.role),
         }));
@@ -227,6 +239,7 @@ const Index = () => {
           return va - vb;
         });
 
+        console.log(`Filtered out ${mapped.length - filtered.length} captain/mentor players from auction`);
         setPlayers(normalized);
         setCurrentPlayerIndex(0);
       } catch (err) {
@@ -409,7 +422,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="container mx-auto px-3 py-6 space-y-6">
         <AuctionHeader round={round} totalPlayers={players.length} soldPlayers={soldPlayers.length} unsoldPlayers={unsoldPlayers.length} />
         
         {/* Data Management Buttons */}
@@ -432,7 +445,7 @@ const Index = () => {
           </Button>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-6">
           {/* Left Side - Single Clean Player Card */}
           <div className="flex flex-col gap-6">
             {currentPlayer && (
@@ -533,10 +546,18 @@ const Index = () => {
             <BiddingPanel currentPlayer={currentPlayer} teams={teams} onSold={handleSold} onUnsold={handleUnsold} />
           </div>
 
-          <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             {teams.map((team) => (
               <div key={team.name} onClick={() => { setSelectedTeam(team.name); openTeamDialog(); }}>
-                <TeamCard name={team.name} purse={team.purse} playerCount={team.playerCount} color={team.color} onClick={() => { setSelectedTeam(team.name); openTeamDialog(); }} />
+                <TeamCard 
+                  name={team.name} 
+                  purse={team.purse} 
+                  playerCount={team.playerCount} 
+                  color={team.color}
+                  captain={team.captain}
+                  mentor={team.mentor}
+                  onClick={() => { setSelectedTeam(team.name); openTeamDialog(); }} 
+                />
               </div>
             ))}
           </div>
