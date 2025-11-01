@@ -24,7 +24,7 @@ const STORAGE_KEY = "auction_data";
 const INITIAL_TEAMS = [
   { name: "Dark Knights", purse: 50000, playerCount: 0, color: "#1a1a1a", captain: "Shourya Shikhar Singh", mentor: "Shib Pattnayak" },
   { name: "Giant Slayers", purse: 50000, playerCount: 0, color: "#FF6B35", captain: "SIDDHARTHA GHOSH", mentor: "SAMARESH GAYAN" },
-  { name: "Desi Boyz", purse: 50000, playerCount: 0, color: "#FFD60A", captain: "AMIT SAHA", mentor: "Pankaj kumar" },
+  { name: "Desi Boyz", purse: 50000, playerCount: 0, color: "#FFD60A", captain: "AMIT SAHA", mentor: "Biswajit Swain" },
   { name: "Warriors", purse: 50000, playerCount: 0, color: "#004E89", captain: "Argha Chatterjee", mentor: "Santanu Ghosh" },
   { name: "Mighty Bulls", purse: 50000, playerCount: 0, color: "#FF0054", captain: "Hrishikesh Mukherjee", mentor: "Pankaj kumar" },
   { name: "Ninja X", purse: 50000, playerCount: 0, color: "#7209B7", captain: "Surya", mentor: "Gaurav Singh" },
