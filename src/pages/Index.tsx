@@ -5,7 +5,7 @@ import BiddingPanel from "@/components/BiddingPanel";
 import AuctionHeader from "@/components/AuctionHeader";
 import TeamDetailsDialog from "@/components/TeamDetailsDialog";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, ChevronLeft, User } from "lucide-react";
+import { ChevronRight, ChevronLeft, User, Download, Trash2 } from "lucide-react";
 
 /*
   Changes:
@@ -18,9 +18,8 @@ import { ChevronRight, ChevronLeft, User } from "lucide-react";
 const SHEET_ID = "17WNEvsGoeEN04bzFb92Anc3mygKXH9Wtnwi8STZONak";
 const SHEET_GID = "0";
 
-// Google Apps Script Web App URL - You'll need to deploy this script (see instructions below)
-// Leave empty to disable auto-saving, or set to your deployed Apps Script URL
-const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxM3q9PehpXNgXVgWIItsvwQEc-rtS79JFc_9ZDbBHg4QGAeGnaqdUvoVVwqOoAf_lS/exec";
+// Local storage key for saving auction data
+const STORAGE_KEY = "auction_data";
 
 const INITIAL_TEAMS = [
   { name: "Dark Knights", purse: 100000000, playerCount: 0, color: "#1a1a1a" },
@@ -238,49 +237,104 @@ const Index = () => {
     fetchPlayersFromSheet();
   }, []);
 
-  // Function to save data to Google Sheets
-  const saveToSheet = async (player: any, status: "sold" | "unsold", teamName?: string, amount?: number) => {
-    if (!GOOGLE_APPS_SCRIPT_URL) {
-      console.warn("Google Apps Script URL not configured. Data not saved to sheet.");
-      return;
-    }
-
+  // Function to save data to local storage
+  const saveToLocalStorage = (player: any, status: "sold" | "unsold", teamName?: string, amount?: number) => {
     try {
-      const payload = {
-        sheetId: SHEET_ID,
-        rowIndex: player.rowIndex || player.originalRowIndex + 2,
+      const transaction = {
+        id: `${Date.now()}-${Math.random()}`,
         playerName: player.name,
+        playerRole: player.role,
+        basePrice: player.basePrice,
         status: status,
         team: teamName || "",
         amount: amount || 0,
         round: round,
         timestamp: new Date().toISOString(),
+        date: new Date().toLocaleString(),
       };
 
-      // Use GET with query parameters (works better with no-cors mode)
-      const params = new URLSearchParams({
-        sheetId: payload.sheetId.toString(),
-        rowIndex: payload.rowIndex.toString(),
-        playerName: payload.playerName,
-        status: payload.status,
-        team: payload.team || "",
-        amount: payload.amount.toString(),
-        round: payload.round.toString(),
-        timestamp: payload.timestamp,
-      });
-
-      const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
+      // Get existing data
+      const existingData = localStorage.getItem(STORAGE_KEY);
+      const transactions = existingData ? JSON.parse(existingData) : [];
       
-      // Use image loading trick to send request (works with no-cors)
-      const img = new Image();
-      img.src = url;
+      // Add new transaction
+      transactions.push(transaction);
       
-      console.log("Saving to sheet:", payload);
+      // Save back to localStorage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+      
+      console.log("✅ Saved to local storage:", transaction);
     } catch (error) {
-      console.error("Failed to save to sheet:", error);
+      console.error("Failed to save to local storage:", error);
       // Don't throw - allow auction to continue even if save fails
     }
   };
+
+  // Function to export data as CSV
+  const exportToCSV = () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (!data) {
+        alert("No data to export!");
+        return;
+      }
+
+      const transactions = JSON.parse(data);
+      
+      // CSV headers
+      const headers = ["Date", "Player Name", "Role", "Base Price", "Status", "Team", "Amount", "Round"];
+      const csvRows = [headers.join(",")];
+      
+      // Add transaction rows
+      transactions.forEach((t: any) => {
+        const row = [
+          `"${t.date}"`,
+          `"${t.playerName}"`,
+          `"${t.playerRole}"`,
+          t.basePrice,
+          `"${t.status}"`,
+          `"${t.team}"`,
+          t.amount,
+          t.round,
+        ];
+        csvRows.push(row.join(","));
+      });
+      
+      // Create download
+      const csv = csvRows.join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `auction-data-${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      alert("Data exported successfully!");
+    } catch (error) {
+      console.error("Failed to export:", error);
+      alert("Failed to export data!");
+    }
+  };
+
+  // Function to clear all saved data
+  const clearLocalStorage = () => {
+    if (confirm("Are you sure you want to clear all saved auction data? This cannot be undone!")) {
+      localStorage.removeItem(STORAGE_KEY);
+      alert("All saved data has been cleared!");
+    }
+  };
+
+  // Load saved data on component mount
+  useEffect(() => {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (data) {
+      const transactions = JSON.parse(data);
+      console.log(`📊 Loaded ${transactions.length} saved transactions from local storage`);
+    }
+  }, []);
 
   const handleSold = async (teamName: string, amount: number) => {
     const updatedTeams = teams.map((team) =>
@@ -292,8 +346,8 @@ const Index = () => {
       const soldPlayer = { ...currentPlayer, team: teamName, soldPrice: amount };
       setSoldPlayers([...soldPlayers, soldPlayer]);
       
-      // Save to Google Sheets
-      await saveToSheet(currentPlayer, "sold", teamName, amount);
+      // Save to local storage
+      saveToLocalStorage(currentPlayer, "sold", teamName, amount);
     }
 
     if (currentPlayerIndex < players.length - 1) {
@@ -307,8 +361,8 @@ const Index = () => {
     if (currentPlayer) {
       setUnsoldPlayers([...unsoldPlayers, currentPlayer]);
       
-      // Save to Google Sheets
-      await saveToSheet(currentPlayer, "unsold");
+      // Save to local storage
+      saveToLocalStorage(currentPlayer, "unsold");
     }
 
     if (currentPlayerIndex < players.length - 1) {
@@ -357,6 +411,26 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
         <AuctionHeader round={round} totalPlayers={players.length} soldPlayers={soldPlayers.length} unsoldPlayers={unsoldPlayers.length} />
+        
+        {/* Data Management Buttons */}
+        <div className="flex items-center justify-end gap-3">
+          <Button 
+            variant="outline" 
+            onClick={exportToCSV}
+            className="border-border hover:border-primary"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={clearLocalStorage}
+            className="border-destructive/50 hover:border-destructive text-destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Clear Data
+          </Button>
+        </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Left Side - Single Clean Player Card */}
