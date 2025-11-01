@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import TeamCard from "@/components/TeamCard";
 import PlayerCard from "@/components/PlayerCard";
@@ -96,46 +97,43 @@ const sanitizeFileName = (name: string): string => {
     .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
 };
 
-// Build image candidates - LOCAL FILES ONLY
+// Build image candidates - REMOTE URLS ONLY (no local files)
 const buildImageCandidates = (playerName: string, rawUrl?: string): string[] => {
   const candidates: string[] = [];
-  const extensions = ['jpg', 'jpeg', 'png', 'webp'];
   
-  // FIRST: Try common filename patterns (most likely formats)
-  // Try underscore format first (very common: "First_Last.jpg")
-  extensions.forEach(ext => {
-    candidates.push(`/images/players/${playerName.replace(/\s+/g, '_')}.${ext}`);
-    candidates.push(`/images/players/${playerName.toLowerCase().replace(/\s+/g, '_')}.${ext}`);
-  });
-  
-  // Try hyphen format
-  extensions.forEach(ext => {
-    candidates.push(`/images/players/${playerName.replace(/\s+/g, '-')}.${ext}`);
-    candidates.push(`/images/players/${playerName.toLowerCase().replace(/\s+/g, '-')}.${ext}`);
-  });
-  
-  // Try exact name as-is (with spaces)
-  extensions.forEach(ext => {
-    candidates.push(`/images/players/${playerName}.${ext}`);
-    candidates.push(`/images/players/${playerName.toLowerCase()}.${ext}`);
-  });
-  
-  // Try no spaces
-  extensions.forEach(ext => {
-    candidates.push(`/images/players/${playerName.replace(/\s+/g, '')}.${ext}`);
-    candidates.push(`/images/players/${playerName.toLowerCase().replace(/\s+/g, '')}.${ext}`);
-  });
-  
-  // Try sanitized name
-  const sanitized = sanitizeFileName(playerName);
-  extensions.forEach(ext => {
-    const sanitizedPath = `/images/players/${sanitized}.${ext}`;
-    if (!candidates.includes(sanitizedPath)) {
-      candidates.push(sanitizedPath);
-    }
-  });
+  // Only use remote URLs from the sheet
+  if (rawUrl && rawUrl.trim()) {
+    const u = rawUrl.trim();
+    try {
+      const direct = normalizeImageUrl(u);
+      if (direct) candidates.push(direct);
 
-  // ONLY LOCAL FILES - No remote URLs
+      // If it's a Google Drive URL, also try the thumbnail endpoint
+      let m = u.match(/\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/) || u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (m && m[1]) {
+        const id = m[1];
+        candidates.push(`https://drive.google.com/thumbnail?id=${id}&sz=w1000`);
+      }
+
+      // Try Google Drive direct download/view links
+      if (u.includes("drive.google.com")) {
+        m = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if (m && m[1]) {
+          candidates.push(`https://drive.google.com/uc?export=view&id=${m[1]}`);
+        }
+      }
+
+      // Try proxy via images.weserv.nl (helps with CORS/referrer issues)
+      try {
+        const parsed = new URL(u);
+        const noProtocol = `${parsed.host}${parsed.pathname}${parsed.search}`;
+        candidates.push(`https://images.weserv.nl/?url=${encodeURIComponent(noProtocol)}&w=800&h=1066&fit=cover`);
+      } catch {}
+    } catch {
+      // Ignore errors in remote URL processing
+    }
+  }
+
   return candidates;
 };
 
@@ -421,8 +419,9 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-3 py-6 space-y-6">
+    <div className="bg-background">
+     {/* The overall page height will now collapse to fit the content exactly. */}
+      <div className="container mx-auto px-1 py-3 space-y-3">
         <AuctionHeader round={round} totalPlayers={players.length} soldPlayers={soldPlayers.length} unsoldPlayers={unsoldPlayers.length} />
         
         {/* Data Management Buttons */}
@@ -445,7 +444,7 @@ const Index = () => {
           </Button>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-5">
           {/* Left Side - Single Clean Player Card */}
           <div className="flex flex-col gap-6">
             {currentPlayer && (
@@ -484,8 +483,8 @@ const Index = () => {
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center">
-                      <User className="w-24 h-24 text-muted-foreground mb-2" />
+                    <div className="w-full h-30 flex flex-col items-center justify-center">
+                      <User className="w-24 h-22 text-muted-foreground mb-2" />
                       <p className="text-xs text-muted-foreground text-center px-4">
                         No image found
                       </p>
@@ -495,20 +494,20 @@ const Index = () => {
                 
                 {/* Name + Category */}
                 <div className="text-center mb-4">
-                  <h2 className="text-3xl font-bold text-foreground mb-2">
+                  <h2 className="text-2.7xl font-bold text-foreground mb-2">
                     {currentPlayer.name}
                   </h2>
                   {currentPlayer.role ? (
-                    <div className="inline-block px-4 py-1.5 bg-primary/10 text-primary rounded-full border border-primary/20">
+                    <div className="inline-block px-3 py-1.5 bg-primary/10 text-primary rounded-full border border-primary/20">
                       <span className="text-sm font-semibold capitalize">{normalizeRole(currentPlayer.role)}</span>
                     </div>
                   ) : null}
                 </div>
                 
                 {/* Base Price */}
-                <div className="text-center pt-4 border-t border-border/50">
+                <div className="text-center pt-3 border-t border-border/50">
                   <p className="text-sm text-muted-foreground mb-2">Base Price</p>
-                  <p className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                  <p className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
                     {(currentPlayer.basePrice || 500).toLocaleString()} Points
                   </p>
                 </div>
@@ -543,10 +542,10 @@ const Index = () => {
 
           {/* Middle - Bidding Panel */}
           <div className="space-y-6">
-            <BiddingPanel currentPlayer={currentPlayer} teams={teams} onSold={handleSold} onUnsold={handleUnsold} />
+            <BiddingPanel currentPlayer={currentPlayer} teams={teams} onSold={handleSold} onUnsold={handleUnsold} allowZeroPurchase={round === 3} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-y-3 gap-x-2">
             {teams.map((team) => (
               <div key={team.name} onClick={() => { setSelectedTeam(team.name); openTeamDialog(); }}>
                 <TeamCard 
