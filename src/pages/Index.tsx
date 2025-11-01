@@ -257,16 +257,25 @@ const Index = () => {
         timestamp: new Date().toISOString(),
       };
 
-      const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-        method: "POST",
-        mode: "no-cors", // Required for Google Apps Script
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+      // Use GET with query parameters (works better with no-cors mode)
+      const params = new URLSearchParams({
+        sheetId: payload.sheetId.toString(),
+        rowIndex: payload.rowIndex.toString(),
+        playerName: payload.playerName,
+        status: payload.status,
+        team: payload.team || "",
+        amount: payload.amount.toString(),
+        round: payload.round.toString(),
+        timestamp: payload.timestamp,
       });
 
-      console.log("Saved to sheet:", payload);
+      const url = `${GOOGLE_APPS_SCRIPT_URL}?${params.toString()}`;
+      
+      // Use image loading trick to send request (works with no-cors)
+      const img = new Image();
+      img.src = url;
+      
+      console.log("Saving to sheet:", payload);
     } catch (error) {
       console.error("Failed to save to sheet:", error);
       // Don't throw - allow auction to continue even if save fails
