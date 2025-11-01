@@ -46,15 +46,14 @@ const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold, allowZeroPurchas
       return;
     }
 
-    const amountInRupees = amountVal * 10000000;
     const team = teams.find(t => t.name === selectedTeam);
 
-    if (team && amountInRupees > team.purse) {
-      toast.error("Team doesn't have enough purse!");
+    if (team && amountVal > team.purse) {
+      toast.error("Team doesn't have enough points!");
       return;
     }
 
-    onSold(selectedTeam, amountInRupees);
+    onSold(selectedTeam, amountVal);
     setSelectedTeam("");
     setBidAmount("");
     toast.success(`${currentPlayer?.name} sold to ${selectedTeam}!`);
@@ -99,7 +98,7 @@ const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold, allowZeroPurchas
             <h2 className="text-3xl font-bold text-foreground">{currentPlayer.name}</h2>
             <p className="text-muted-foreground">{currentPlayer.category}</p>
             <p className="text-xl font-semibold text-accent mt-2">
-              Base: ₹{(currentPlayer.basePrice / 10000000).toFixed(2)} Crores
+              Base: {currentPlayer.basePrice || 500} Points
             </p>
           </div>
         </div>
@@ -114,7 +113,7 @@ const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold, allowZeroPurchas
               <SelectContent className="bg-popover border-border z-50">
                 {teams.map((team) => (
                   <SelectItem key={team.name} value={team.name}>
-                    {team.name} - ₹{(team.purse / 10000000).toFixed(2)}Cr
+                    {team.name} - {team.purse.toLocaleString()} Points
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -122,13 +121,13 @@ const BiddingPanel = ({ currentPlayer, teams, onSold, onUnsold, allowZeroPurchas
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="amount">Bid Amount (in Crores)</Label>
+            <Label htmlFor="amount">Bid Amount (in Points)</Label>
             <Input
               id="amount"
               type="number"
-              step="0.01"
+              step="1"
               min="0"
-              placeholder={allowZeroPurchase ? "Enter amount (0 allowed)" : "Enter amount (>0)"}
+              placeholder={allowZeroPurchase ? "Enter points (0 allowed)" : "Enter points (>0)"}
               value={bidAmount}
               onChange={(e) => setBidAmount(e.target.value)}
               className="bg-input border-border text-foreground"

@@ -22,14 +22,14 @@ const SHEET_GID = "0";
 const STORAGE_KEY = "auction_data";
 
 const INITIAL_TEAMS = [
-  { name: "Dark Knights", purse: 100000000, playerCount: 0, color: "#1a1a1a" },
-  { name: "Giant Slayers", purse: 100000000, playerCount: 0, color: "#FF6B35" },
-  { name: "Desi Boyz", purse: 100000000, playerCount: 0, color: "#FFD60A" },
-  { name: "Warriors", purse: 100000000, playerCount: 0, color: "#004E89" },
-  { name: "Mighty Bulls", purse: 100000000, playerCount: 0, color: "#FF0054" },
-  { name: "Ninja X", purse: 100000000, playerCount: 0, color: "#7209B7" },
-  { name: "Red Dragons", purse: 100000000, playerCount: 0, color: "#DC2626" },
-  { name: "Thunderwolves", purse: 100000000, playerCount: 0, color: "#3B82F6" },
+  { name: "Dark Knights", purse: 50000, playerCount: 0, color: "#1a1a1a" },
+  { name: "Giant Slayers", purse: 50000, playerCount: 0, color: "#FF6B35" },
+  { name: "Desi Boyz", purse: 50000, playerCount: 0, color: "#FFD60A" },
+  { name: "Warriors", purse: 50000, playerCount: 0, color: "#004E89" },
+  { name: "Mighty Bulls", purse: 50000, playerCount: 0, color: "#FF0054" },
+  { name: "Ninja X", purse: 50000, playerCount: 0, color: "#7209B7" },
+  { name: "Red Dragons", purse: 50000, playerCount: 0, color: "#DC2626" },
+  { name: "Thunderwolves", purse: 50000, playerCount: 0, color: "#3B82F6" },
 ];
 
 const roleOrder = ["wicketkeeper", "batsman", "allrounder", "bowler"];
@@ -198,7 +198,7 @@ const Index = () => {
           const imageUrlRaw =
             obj["Image"] || obj["ImageUrl"] || obj["Photo"] || obj["image"] || obj["image_url"] || "";
 
-          const basePrice = Number(basePriceRaw) || 0;
+          const basePrice = Number(basePriceRaw) || 500; // Default to 500 points if not specified
 
           return {
             id: `sheet-${idx}`,
@@ -282,7 +282,7 @@ const Index = () => {
       const transactions = JSON.parse(data);
       
       // CSV headers
-      const headers = ["Date", "Player Name", "Role", "Base Price", "Status", "Team", "Amount", "Round"];
+      const headers = ["Date", "Player Name", "Role", "Base Price (Points)", "Status", "Team", "Amount (Points)", "Round"];
       const csvRows = [headers.join(",")];
       
       // Add transaction rows
@@ -496,7 +496,7 @@ const Index = () => {
                 <div className="text-center pt-4 border-t border-border/50">
                   <p className="text-sm text-muted-foreground mb-2">Base Price</p>
                   <p className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-                    ₹{(currentPlayer.basePrice / 10000000).toFixed(2)}Cr
+                    {(currentPlayer.basePrice || 500).toLocaleString()} Points
                   </p>
                 </div>
               </div>

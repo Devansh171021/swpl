@@ -11,8 +11,6 @@ interface TeamCardProps {
 }
 
 const TeamCard = ({ name, purse, playerCount, color, onClick }: TeamCardProps) => {
-  const purseInCrores = (purse / 10000000).toFixed(2);
-  
   return (
     <Card 
       className="relative overflow-hidden bg-gradient-card border-border/50 hover:border-primary/50 transition-all duration-300 hover:shadow-glow cursor-pointer"
@@ -38,9 +36,9 @@ const TeamCard = ({ name, purse, playerCount, color, onClick }: TeamCardProps) =
           <DollarSign className="w-5 h-5 text-accent" />
           <div>
             <p className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              ₹{purseInCrores}
+              {purse.toLocaleString()} Points
             </p>
-            <p className="text-xs text-muted-foreground">Crores Remaining</p>
+            <p className="text-xs text-muted-foreground">Remaining</p>
           </div>
         </div>
       </div>

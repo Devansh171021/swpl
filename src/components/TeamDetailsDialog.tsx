@@ -60,16 +60,16 @@ const TeamDetailsDialog = ({
                   <span>Total Spent</span>
                 </div>
                 <p className="text-2xl font-bold text-destructive">
-                  ₹{(totalSpent / 10000000).toFixed(2)}Cr
+                  {totalSpent.toLocaleString()} Points
                 </p>
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-muted-foreground text-sm">
                   <DollarSign className="w-4 h-4" />
-                  <span>Remaining Purse</span>
+                  <span>Remaining Points</span>
                 </div>
                 <p className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-                  ₹{(remainingPurse / 10000000).toFixed(2)}Cr
+                  {remainingPurse.toLocaleString()} Points
                 </p>
               </div>
             </div>
@@ -111,7 +111,7 @@ const TeamDetailsDialog = ({
 
                 <div className="text-right">
                   <p className="text-lg font-bold text-accent">
-                    ₹{(player.soldPrice / 10000000).toFixed(2)}Cr
+                    {player.soldPrice.toLocaleString()} Points
                   </p>
                   <p className="text-xs text-muted-foreground">Sold Price</p>
                 </div>

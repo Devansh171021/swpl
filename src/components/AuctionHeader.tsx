@@ -18,7 +18,7 @@ const AuctionHeader = ({ round, totalPlayers, soldPlayers, unsoldPlayers }: Auct
           </div>
           <div>
             <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Player Auction 2025
+              SWPL 5.0 Auction
             </h1>
             <p className="text-muted-foreground">Live Bidding in Progress</p>
           </div>
